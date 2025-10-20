@@ -9,6 +9,14 @@
 
 eFLL (Embedded Fuzzy Logic Library) is a standard library for Embedded Systems to implement easy and efficient Fuzzy Systems.
 
+### Highlights
+
+- ✅ **Broad MCU coverage** – validated on Arduino boards and STM32 系列（F0/F1/F4）等 Cortex-M 平台，支持浮点或定点模式。
+- ⚙️ **轻量级依赖** – 仅依赖标准 `stdlib.h`，适用于资源受限的裸机或 RTOS 项目。
+- 📚 **完善文档** – 在 [`docs/`](./docs) 目录中提供集成指南与行业案例，帮助快速落地。
+
+如需快速在 STM32 或其他 ARM 平台上部署，请参考下文的配置步骤与关键 API 使用范式。
+
 Para informações avançadas, documentação e exemplos de uso em PORTUGUÊS: [eFLL - Uma Biblioteca Fuzzy para Arduino e Sistemas Embarcados](https://blog.alvesoaj.com/2012/09/arduinofuzzy-uma-biblioteca-fuzzy-para.html)
 
 For advanced information, documentation, and usage examples in ENGLISH: [eFLL - A Fuzzy Library for Arduino and Embedded Systems](https://blog.alvesoaj.com/2012/09/arduinofuzzy-fuzzy-library-for-arduino.html)
@@ -24,6 +32,46 @@ It uses the process:
 (MAX-MIN) and (Mamdani Minimum) for inference and composition, (CENTER OF AREA) to defuzzification in a continuous universe.
 
 Tested with [GTest](http://code.google.com/p/googletest/) for C, Google Inc.
+
+## STM32 / Embedded Integration Quickstart
+
+1. **Fetch sources**：使用 `git submodule` 或直接复制 `src` 文件，将 `Fuzzy*` 源码放入 `Core/Src`（STM32CubeIDE）或其他构建系统目录。
+2. **配置编译选项**：
+   - 启用 `-std=gnu++11` 及与目标 MCU 匹配的 `-mcpu`/`-mfloat-abi` 参数。
+   - 在无 FPU 的设备上，通过宏控制切换到定点缩放模式，具体策略见 [`docs/integration_guide.md`](./docs/integration_guide.md)。
+3. **初始化内存**：在系统启动阶段实例化 `Fuzzy`、`FuzzyInput`、`FuzzyOutput` 等对象，将隶属度参数声明为 `const` 或 `constexpr`，保证常量位于 Flash。
+4. **周期调用**：在主循环或 RTOS 周期任务中按固定采样周期执行：采集传感器 → 归一化 → `setInput()` → `fuzzify()` → `defuzzify()` → 输出执行器。
+5. **线程安全**：若多个任务共享同一 `Fuzzy` 实例，请使用互斥量保护调用序列，详见 [`docs/integration_guide.md`](./docs/integration_guide.md)。
+
+> 传统的通用安装步骤请参考下方 Arduino 部分或直接查看 `Makefile`。
+
+## Key API Usage Patterns
+
+使用 eFLL 进行推理通常遵循以下范式：
+
+```cpp
+Fuzzy fuzzy;
+
+// 1. 定义输入、输出与集合
+FuzzyInput temperature(1);
+temperature.addFuzzySet(&cold);
+// ...
+
+// 2. 设置输入数值
+fuzzy.setInput(temperature.getId(), currentTemperature);
+
+// 3. 触发推理
+fuzzy.fuzzify();
+
+// 4. 获取输出
+float duty = fuzzy.defuzzify(heater.getId());
+```
+
+- **`setInput(id, value)`**：在每个采样周期调用，为每个输入提供 crisp 值。可以结合平台 HAL 的传感器接口进行归一化。
+- **`fuzzify()`**：执行规则匹配、推理与合成，需在所有输入设置完成后调用。
+- **`defuzzify(id)`**：获取指定输出的 crisp 结果，可在取值后执行限幅或滤波。
+
+更多集成细节（内存布局、时序设计、线程安全）详见 [`docs/integration_guide.md`](./docs/integration_guide.md)。
 
 ## How to install (general use)
 
